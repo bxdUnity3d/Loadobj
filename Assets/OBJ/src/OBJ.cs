@@ -9,14 +9,24 @@ using System.IO;
 public class OBJ : MonoBehaviour {
 	
 	public string objPath;
+    public static int flag = 0;
+    public enum BlendMode
+    {
+        Opaque,
+        Cutout,
+        Fade,        // Old school alpha-blending mode, fresnel does not affect amount of transparency
+        Transparent // Physically plausible transparency mode, implemented as alpha pre-multiply
+    }
+
 #if UNITY_5
-	public bool useLegacyShaders = false; // compatibility option for previous users of OBJ.cs using Unity5
+    public bool useLegacyShaders = false; // compatibility option for previous users of OBJ.cs using Unity5
+    
 #else
 	private bool useLegacyShaders = true;
 #endif
 
-	/* OBJ file tags */
-	private const string O 	= "o";
+    /* OBJ file tags */
+    private const string O 	= "o";
 	private const string G 	= "g";
 	private const string V 	= "v";
 	private const string VT = "vt";
@@ -52,6 +62,8 @@ public class OBJ : MonoBehaviour {
 	private const string LEGACY_SPECULAR_SHADER = "Legacy Shaders/Specular";
 	private const string LEGACY_BUMPED_DIFFUSE_SHADER = "Legacy Shaders/Bumped Diffuse";
 	private const string LEGACY_BUMPED_SPECULAR_SHADER = "Legacy Shaders/Bumped Specular";
+
+    private const string v3dStandard_SHADER = "Custom/Standard";
 #else
 	private const string DIFFUSE_SHADER = "Diffuse";
 	private const string SPECULAR_SHADER = "Specular";
@@ -65,7 +77,7 @@ public class OBJ : MonoBehaviour {
 #endif
 
 
-	private string basepath;
+    private string basepath;
 	private string mtllib;
 	private GeometryBuffer buffer;
 
@@ -79,62 +91,81 @@ public class OBJ : MonoBehaviour {
 	public IEnumerator Load(string path) {
 		yield return 0; // play nice by not hogging the main thread
 
-		basepath = (path.IndexOf("/") == -1) ? "" : path.Substring(0, path.LastIndexOf("/") + 1);
+        if(!string.IsNullOrEmpty(path))
+        {
+            basepath = (path.IndexOf("/") == -1) ? "" : path.Substring(0, path.LastIndexOf("/") + 1);
 
-		WWW loader = new WWW(path);
-		yield return loader;
-		yield return StartCoroutine(SetGeometryData(loader.text));
-		
-		if(hasMaterials) {
-			Debug.Log("base path = "+basepath);
-			Debug.Log("MTL path = "+(basepath + mtllib));
-			string mtlPath = basepath + mtllib;
-			loader = new WWW (mtlPath);
-			yield return loader;
+            WWW loader = new WWW(path);
+            yield return loader;
+            //yield return StartCoroutine(SetGeometryData(loader.text));
+            string objData = ObjSplit.split(loader.text);
+            yield return StartCoroutine(SetGeometryData(objData));
 
-			if (loader.error != null) {
-				Debug.LogError(loader.error);
-			}
-			else {
-				SetMaterialData(loader.text);
-			}
 
-			if (materialData != null) {
-				foreach(MaterialData m in materialData) {
-					if(m.diffuseTexPath != null) {
-						string texpath = basepath + m.diffuseTexPath;
-						loader = new WWW(texpath);
-						yield return loader;
+            if (hasMaterials)
+            {
+                //Debug.Log("base path = "+basepath);
+                //Debug.Log("MTL path = "+(basepath + mtllib));
+                string mtlPath = basepath + mtllib;
+                loader = new WWW(mtlPath);
+                yield return loader;
 
-						if (loader.error != null) {
-							Debug.LogError(loader.error);
-						} else {
-							m.diffuseTex = GetTexture(loader);
-						}
-					}
+                if (loader.error != null)
+                {
+                    //Debug.LogError(loader.error);
+                }
+                else
+                {
+                    SetMaterialData(loader.text);
+                }
 
-					if(m.bumpTexPath != null) {
-						string texpath = basepath + m.bumpTexPath;
-						loader = new WWW(texpath);
-						yield return loader;
+                if (materialData != null)
+                {
+                    foreach (MaterialData m in materialData)
+                    {
+                        if (m.diffuseTexPath != null)
+                        {
+                            string texpath = basepath + m.diffuseTexPath;
+                            loader = new WWW(texpath);
+                            yield return loader;
 
-						if (loader.error != null) {
-							Debug.LogError(loader.error);
-						} else {
-							m.bumpTex = GetTexture(loader);
-						}
-					}
-				}
-			}
-		}
+                            if (loader.error != null)
+                            {
+                                //Debug.LogError(loader.error);
+                            }
+                            else
+                            {
+                                m.diffuseTex = GetTexture(loader);
+                            }
+                        }
 
-		Build();
+                        if (m.bumpTexPath != null)
+                        {
+                            string texpath = basepath + m.bumpTexPath;
+                            loader = new WWW(texpath);
+                            yield return loader;
+
+                            if (loader.error != null)
+                            {
+                                //Debug.LogError(loader.error);
+                            }
+                            else
+                            {
+                                m.bumpTex = GetTexture(loader);
+                            }
+                        }
+                    }
+                }
+            }
+
+            Build();
+        }
 	}
 
 	private Texture2D GetTexture(WWW loader) {
 		string ext = Path.GetExtension(loader.url).ToLower();
 		if (ext != ".png" && ext != ".jpg" && ext != ".tga") {
-			Debug.LogWarning("maybe unsupported texture format:"+ext);
+			//Debug.LogWarning("maybe unsupported texture format:"+ext);
 		}
 
 		return (ext == ".tga" ? TGALoader.LoadTGA (new MemoryStream(loader.bytes)) : loader.texture);
@@ -252,7 +283,7 @@ public class OBJ : MonoBehaviour {
 						buffer.PushFace(faces[2]);
 					}
 					else {
-						Debug.LogWarning("face vertex count :"+(p.Length-1)+" larger than 4:");
+						//Debug.LogWarning("face vertex count :"+(p.Length-1)+" larger than 4:");
 					}
 					break;
 				case MTL:
@@ -356,7 +387,7 @@ public class OBJ : MonoBehaviour {
 					current.illumType = ci(p[1]);
 					break;
 				default:
-					Debug.Log("this line was not processed :" +l );
+					//Debug.Log("this line was not processed :" +l );
 					break;
 			}
 		}
@@ -457,7 +488,7 @@ public class OBJ : MonoBehaviour {
 				args.Add(p[pos]);
 			}
 			if (isOptionNotEnough) {
-				Debug.Log("bump variable value not enough for option:"+optionName+" of material:"+m.name);
+				//Debug.Log("bump variable value not enough for option:"+optionName+" of material:"+m.name);
 				continue;
 			}
 			for (;i<def.valueNumMax && pos < p.Length ; i++, pos++) {
@@ -470,7 +501,7 @@ public class OBJ : MonoBehaviour {
 				args.Add(p[pos]);
 			}
 			// TODO: some processing of options
-			Debug.Log("found option: "+optionName+" of material: "+m.name+" args: "+String.Concat(args.ToArray()));
+			//Debug.Log("found option: "+optionName+" of material: "+m.name+" args: "+String.Concat(args.ToArray()));
 		}
 		if (filename != null) {
 			m.bumpTexPath = filename;
@@ -487,14 +518,16 @@ public class OBJ : MonoBehaviour {
 		if(hasMaterials) {
 			foreach(MaterialData md in materialData) {
 				if (materials.ContainsKey(md.name)) {
-					Debug.LogWarning("duplicate material found: "+ md.name+ ". ignored repeated occurences");
+					//Debug.LogWarning("duplicate material found: "+ md.name+ ". ignored repeated occurences");
 					continue;
 				}
 				materials.Add(md.name, GetMaterial(md));
 			}
 		} else {
-			materials.Add("default", new Material(Shader.Find("VertexLit")));
-		}
+            Material m = new Material(Shader.Find("Standard"));
+            SetupMaterialWithBlendMode(m, BlendMode.Fade);
+            materials.Add("default", m);
+        }
 		
 		GameObject[] ms = new GameObject[buffer.numObjects];
 		
@@ -502,7 +535,7 @@ public class OBJ : MonoBehaviour {
 			gameObject.AddComponent(typeof(MeshFilter));
 			gameObject.AddComponent(typeof(MeshRenderer));
 			ms[0] = gameObject;
-            gameObject.transform.localPosition = new Vector3(0, 0, 0);
+            gameObject.transform.localPosition = new Vector3(0, 0, 0);      
 		} else if(buffer.numObjects > 1) {
 			for(int i = 0; i < buffer.numObjects; i++) {
 				GameObject go = new GameObject();
@@ -512,7 +545,83 @@ public class OBJ : MonoBehaviour {
 				ms[i] = go;
 			}
 		}
-		
+	
 		buffer.PopulateMeshes(ms, materials);
-	}
+        //OpacityZero();
+        flag++;
+    }
+
+    void OpacityZero()
+    {
+        MeshRenderer ma = gameObject.GetComponent<MeshRenderer>();
+        if (ma)
+        {
+            ma.material.color = new Color(0.0f, 0.0f, 0.0f, 0.0f);
+        }
+        else
+        {
+            MeshRenderer[] mas = gameObject.GetComponentsInChildren<MeshRenderer>();
+            if (mas != null)
+            {
+                for (int i = 0; i < mas.Length; i++)
+                {
+                    mas[i].material.color = new Color(0.0f, 0.0f, 0.0f, 0.0f);
+                }
+            }
+
+        }
+    }
+
+
+    public void SetupMaterialWithBlendMode(Material material, BlendMode blendMode)
+    {
+        switch (blendMode)
+        {
+            case BlendMode.Opaque:
+                material.SetFloat("_Mode", 0);
+                material.SetOverrideTag("RenderType", "");
+                material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+                material.SetInt("_ZWrite", 1);
+                material.DisableKeyword("_ALPHATEST_ON");
+                material.DisableKeyword("_ALPHABLEND_ON");
+                material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                material.renderQueue = -1;
+                break;
+            case BlendMode.Cutout:
+                material.SetFloat("_Mode", 1);
+                material.SetOverrideTag("RenderType", "TransparentCutout");
+                material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+                material.SetInt("_ZWrite", 1);
+                material.EnableKeyword("_ALPHATEST_ON");
+                material.DisableKeyword("_ALPHABLEND_ON");
+                material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                material.renderQueue = 2450;
+                break;
+            case BlendMode.Fade:
+                material.SetFloat("_Mode", 2);
+                material.SetOverrideTag("RenderType", "Transparent");
+                material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                material.SetInt("_ZWrite", 0);
+                material.DisableKeyword("_ALPHATEST_ON");
+                material.EnableKeyword("_ALPHABLEND_ON");
+                material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                material.renderQueue = 3000;
+                //Debug.Log("Fade");
+                break;
+            case BlendMode.Transparent:
+                material.SetFloat("_Mode", 3);
+                material.SetOverrideTag("RenderType", "Transparent");
+                material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                material.SetInt("_ZWrite", 0);
+                material.DisableKeyword("_ALPHATEST_ON");
+                material.DisableKeyword("_ALPHABLEND_ON");
+                material.EnableKeyword("_ALPHAPREMULTIPLY_ON");
+                material.renderQueue = 3000;
+                break;
+        }
+    }
 }

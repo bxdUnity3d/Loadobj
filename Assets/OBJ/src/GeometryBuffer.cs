@@ -113,14 +113,14 @@ public class GeometryBuffer {
 	}
 	
 	public void Trace() {
-		Debug.Log("OBJ has " + objects.Count + " object(s)");
-		Debug.Log("OBJ has " + vertices.Count + " vertice(s)");
-		Debug.Log("OBJ has " + uvs.Count + " uv(s)");
-		Debug.Log("OBJ has " + normals.Count + " normal(s)");
+		//Debug.Log("OBJ has " + objects.Count + " object(s)");
+		//Debug.Log("OBJ has " + vertices.Count + " vertice(s)");
+		//Debug.Log("OBJ has " + uvs.Count + " uv(s)");
+		//Debug.Log("OBJ has " + normals.Count + " normal(s)");
 		foreach(ObjectData od in objects) {
-			Debug.Log(od.name + " has " + od.groups.Count + " group(s)");
+			//Debug.Log(od.name + " has " + od.groups.Count + " group(s)");
 			foreach(GroupData gd in od.groups) {
-				Debug.Log(od.name + "/" + gd.name + " has " + gd.faces.Count + " faces(s)");
+				//Debug.Log(od.name + "/" + gd.name + " has " + gd.faces.Count + " faces(s)");
 			}
 		}
 		
@@ -135,14 +135,18 @@ public class GeometryBuffer {
 
 	public void PopulateMeshes(GameObject[] gs, Dictionary<string, Material> mats) {
 		if(gs.Length != numObjects) return; // Should not happen unless obj file is corrupt...
-		Debug.Log("PopulateMeshes GameObjects count:"+gs.Length);
+		//Debug.Log("PopulateMeshes GameObjects count:"+gs.Length);
 		for(int i = 0; i < gs.Length; i++) {
 			ObjectData od = objects[i];
 			bool objectHasNormals = (hasNormals && od.normalCount > 0);
 			
 			if(od.name != "default") gs[i].name = od.name;
-			Debug.Log("PopulateMeshes object name:"+od.name);
-			
+			//Debug.Log("PopulateMeshes object name:"+od.name);
+			if(od.allFaces.Count > 65000)
+            {
+                //Debug.Log("PopulateMeshes failed.....");
+                break;
+            }
 			Vector3[] tvertices = new Vector3[od.allFaces.Count];
 			Vector2[] tuvs = new Vector2[od.allFaces.Count];
 			Vector3[] tnormals = new Vector3[od.allFaces.Count];
@@ -150,7 +154,7 @@ public class GeometryBuffer {
 			int k = 0;
 			foreach(FaceIndices fi in od.allFaces) {
 				if (k >= MAX_VERTICES_LIMIT_FOR_A_MESH) {
-					Debug.LogWarning("maximum vertex number for a mesh exceeded for object:"  + gs[i].name);
+					//Debug.LogWarning("maximum vertex number for a mesh exceeded for object:"  + gs[i].name);
 					break;
 				}
 				tvertices[k] = vertices[fi.vi];
@@ -165,15 +169,15 @@ public class GeometryBuffer {
 			if(objectHasNormals) m.normals = tnormals;
 
 			if(od.groups.Count == 1) {
-				Debug.Log("PopulateMeshes only one group: "+od.groups[0].name);
+				//Debug.Log("PopulateMeshes only one group: "+od.groups[0].name);
 				GroupData gd = od.groups[0];
 				string matName = (gd.materialName != null) ? gd.materialName : "default"; // MAYBE: "default" may not enough.
 				if (mats.ContainsKey(matName)) {
 					gs[i].GetComponent<Renderer>().material = mats[matName];
-					Debug.Log("PopulateMeshes mat:"+matName+" set.");
+					//Debug.Log("PopulateMeshes mat:"+matName+" set.");
 				}
 				else {
-					Debug.LogWarning("PopulateMeshes mat:"+matName+" not found.");
+					//Debug.LogWarning("PopulateMeshes mat:"+matName+" not found.");
 				}
 				int[] triangles = new int[gd.faces.Count];
 				for(int j = 0; j < triangles.Length; j++) triangles[j] = j;
@@ -186,15 +190,15 @@ public class GeometryBuffer {
 				m.subMeshCount = gl;
 				int c = 0;
 				
-				Debug.Log("PopulateMeshes group count:"+gl);
+				//Debug.Log("PopulateMeshes group count:"+gl);
 				for(int j = 0; j < gl; j++) {
 					string matName = (od.groups[j].materialName != null) ? od.groups[j].materialName : "default"; // MAYBE: "default" may not enough.
 					if (mats.ContainsKey(matName)) {
 						materials[j] = mats[matName];
-						Debug.Log("PopulateMeshes mat:"+matName+" set.");
+						//Debug.Log("PopulateMeshes mat:"+matName+" set.");
 					}
 					else {
-						Debug.LogWarning("PopulateMeshes mat:"+matName+" not found.");
+						//Debug.LogWarning("PopulateMeshes mat:"+matName+" not found.");
 					}
 					
 					int[] triangles = new int[od.groups[j].faces.Count];
